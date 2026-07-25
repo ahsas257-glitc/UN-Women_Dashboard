@@ -50,7 +50,10 @@ def normalize_label(value: Any) -> str:
 
 
 def form_code_from_filename(path: str) -> str | None:
-    match = re.match(r"(C[1-7]|F0[1-6])", Path(path).name, flags=re.I)
+    # Metadata may be generated on Windows but consumed on Linux in Streamlit
+    # Cloud. Split both path separators instead of delegating to the host OS.
+    filename = re.split(r"[\\/]", str(path))[-1]
+    match = re.match(r"(C[1-7]|F0[1-6])", filename, flags=re.I)
     return match.group(1).upper() if match else None
 
 
@@ -130,7 +133,8 @@ def load_catalog(
         )
     catalog: dict[str, dict[str, Any]] = {}
     for form in raw:
-        code = form_code_from_filename(form["file"])
+        source_file = str(form["file"]).replace("\\", "/")
+        code = form_code_from_filename(source_file)
         if not code:
             continue
         choices_by_list: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -153,7 +157,7 @@ def load_catalog(
         catalog[code] = {
             "code": code,
             "title": FORM_TITLES.get(code, code),
-            "source_file": form["file"],
+            "source_file": source_file,
             "questions": questions,
             "choices_by_list": dict(choices_by_list),
             "by_name": by_name,

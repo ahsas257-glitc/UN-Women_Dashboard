@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.catalog import analytic_questions, load_catalog
+from src.catalog import analytic_questions, form_code_from_filename, load_catalog
 from src.config import (
     FORM_TITLES,
     PUBLIC_GOOGLE_SHEET_ID,
@@ -34,6 +34,16 @@ class DataModelTests(unittest.TestCase):
                 Path(form["source_file"]).parent.name == "XLS_Forms"
                 for form in load_catalog().values()
             )
+        )
+
+    def test_form_code_paths_are_cross_platform(self):
+        self.assertEqual(
+            form_code_from_filename(r"XLS_Forms\C1_example.xlsx"),
+            "C1",
+        )
+        self.assertEqual(
+            form_code_from_filename("XLS_Forms/F06_example.xlsx"),
+            "F06",
         )
 
     def test_catalog_metadata_paths_are_portable(self):

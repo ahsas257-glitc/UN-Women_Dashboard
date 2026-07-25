@@ -69,7 +69,7 @@ def build_form(path: Path) -> dict:
     ]
     workbook.close()
     return {
-        "file": str(Path("XLS_Forms") / path.name),
+        "file": f"XLS_Forms/{path.name}",
         "questions": questions,
         "choices": choices,
     }
