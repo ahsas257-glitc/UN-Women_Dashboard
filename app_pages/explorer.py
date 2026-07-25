@@ -14,29 +14,57 @@ from src.charts import (
     liquid_colors,
 )
 from src.config import FORM_TITLES
+from src.data import filter_data
+from src.state import valid_choice
 from src.ui import dataframe_download, empty_state, glass_section, page_header
 
 
-data = st.session_state["app_data"]
+page_data = st.session_state["app_data"]
+full_data = st.session_state["full_app_data"]
 catalog = load_catalog()
 
 page_header(
     "Questionnaire analysis",
     "Select a questionnaire and inspect every analytical question with cohort comparisons.",
     "analytics",
-    data=data,
+    data=page_data,
+)
+
+form_options = [
+    code
+    for code in FORM_TITLES
+    if code in full_data.forms
+    and code in catalog
+    and analytic_questions(code)
+]
+if not form_options:
+    st.error(
+        "No questionnaire response sheets with analytical metadata are available.",
+        icon=":material/error:",
+    )
+    st.stop()
+st.session_state["analysis_form"] = valid_choice(
+    st.session_state.get("analysis_form"),
+    form_options,
 )
 
 selector_left, selector_right = st.columns([0.38, 0.62], vertical_alignment="bottom")
 with selector_left:
     form_code = st.selectbox(
         "Questionnaire",
-        options=list(FORM_TITLES),
+        options=form_options,
         format_func=lambda code: f"{code} · {FORM_TITLES[code]}",
         key="analysis_form",
     )
 
+analysis_filters = dict(st.session_state.get("global_filters", {}))
+analysis_filters["forms"] = [form_code]
+data = filter_data(full_data, analysis_filters)
 frame = data.forms.get(form_code, pd.DataFrame())
+st.caption(
+    "The selected questionnaire is always included; all other active sidebar "
+    f"filters apply · {len(frame):,} matching responses"
+)
 normalized_columns = {normalize_label(column): column for column in frame.columns}
 score_labels = {
     question["name"]: question.get("_score_label")
@@ -96,14 +124,21 @@ if not questions:
     st.stop()
 
 with selector_right:
+    question_options = list(range(len(questions)))
+    question_state_key = f"analysis_question_selector_{form_code}"
+    st.session_state[question_state_key] = valid_choice(
+        st.session_state.get(question_state_key),
+        question_options,
+        default=0,
+    )
     question_index = st.selectbox(
         "Question",
-        options=list(range(len(questions))),
+        options=question_options,
         format_func=lambda index: (
             f"{index + 1:02d} / {len(questions):02d} · "
             f"{questions[index]['_analysis_label']}"
         ),
-        key=f"analysis_question_selector_{form_code}",
+        key=question_state_key,
     )
 
 question = questions[question_index]
@@ -133,16 +168,27 @@ with st.popover(
     "Analysis settings",
     icon=":material/tune:",
 ):
+    breakdown_state_key = f"analysis_breakdown_{form_code}"
+    st.session_state[breakdown_state_key] = valid_choice(
+        st.session_state.get(breakdown_state_key),
+        list(dimension_columns),
+        default="Overall",
+    )
     breakdown = st.selectbox(
         "Compare by",
         list(dimension_columns),
-        key=f"analysis_breakdown_{form_code}",
+        key=breakdown_state_key,
+    )
+    measure_state_key = f"analysis_measure_{form_code}"
+    st.session_state[measure_state_key] = valid_choice(
+        st.session_state.get(measure_state_key),
+        ["Share", "Count"],
+        default="Share",
     )
     display_mode = st.segmented_control(
         "Measure",
         ["Share", "Count"],
-        default="Share",
-        key=f"analysis_measure_{form_code}",
+        key=measure_state_key,
     )
     top_n = st.slider(
         "Maximum responses",

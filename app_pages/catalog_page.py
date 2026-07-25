@@ -5,6 +5,7 @@ import streamlit as st
 
 from src.catalog import NON_ANALYTIC_TYPES, is_analytic_question, load_catalog
 from src.config import FORM_TITLES
+from src.state import valid_choice, valid_multi
 from src.ui import dataframe_download, glass_section, metric_row, page_header
 
 
@@ -94,13 +95,30 @@ if view == "Inventory":
     )
 
 else:
+    form_options = [code for code in FORM_TITLES if code in catalog]
+    if not form_options:
+        st.error(
+            "Questionnaire metadata is unavailable. Refresh the app to reload XLS_Forms.",
+            icon=":material/error:",
+        )
+        st.stop()
+    st.session_state["catalog_form"] = valid_choice(
+        st.session_state.get("catalog_form"),
+        form_options,
+    )
     form_code = st.selectbox(
         "Inspect questionnaire",
-        list(FORM_TITLES),
+        form_options,
         format_func=lambda code: f"{code} · {FORM_TITLES[code]}",
         key="catalog_form",
     )
-    form = catalog[form_code]
+    form = catalog.get(form_code)
+    if not form:
+        st.error(
+            "The selected questionnaire metadata is unavailable. Refresh the app.",
+            icon=":material/error:",
+        )
+        st.stop()
     type_options = sorted({q["_base_type"] for q in form["questions"]})
 
     show_text = False
@@ -120,11 +138,17 @@ else:
             if q_type not in NON_ANALYTIC_TYPES
             or (show_text and q_type == "text")
         ]
+        type_state_key = f"catalog_types_{form_code}_{show_text}"
+        if type_state_key in st.session_state:
+            st.session_state[type_state_key] = valid_multi(
+                st.session_state[type_state_key],
+                type_options,
+            )
         selected_types = st.multiselect(
             "Question types",
             options=type_options,
             default=default_types,
-            key=f"catalog_types_{form_code}_{show_text}",
+            key=type_state_key,
         )
 
     dictionary_rows = []

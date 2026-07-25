@@ -13,6 +13,7 @@ from src.data import (
     read_workbook_tables,
     submission_date_bounds,
 )
+from src.state import valid_multi
 from src.ui import inject_liquid_glass
 
 
@@ -66,8 +67,8 @@ with st.sidebar:
         except DataSourceError as exc:
             st.error(str(exc), icon=":material/cloud_off:")
             st.caption(
-                "For Streamlit Community Cloud, add GOOGLE_SHEET_ID "
-                "under App settings → Secrets."
+                "The app is locked to the project Google Sheet. Confirm that "
+                "link sharing remains enabled, then use Refresh data."
             )
             st.stop()
 
@@ -85,6 +86,24 @@ with st.sidebar:
         for _, row in full_data.sample.iterrows()
     }
     date_bounds = submission_date_bounds(full_data)
+    form_options = sorted(full_data.forms)
+    round_options = all_rounds(full_data)
+    coverage_options = ["Complete", "Missing", "Unexpected", "Not assigned"]
+
+    state_options = {
+        "global_provinces": province_options,
+        "global_districts": district_options,
+        "global_assignees": assignee_options,
+        "global_wob_keys": list(beneficiary_options),
+        "global_forms": form_options,
+        "global_rounds": round_options,
+        "global_coverage_statuses": coverage_options,
+    }
+    for state_key, options in state_options.items():
+        current = st.session_state.get(state_key, [])
+        sanitized = valid_multi(current, options)
+        if list(current or []) != sanitized:
+            st.session_state[state_key] = sanitized
 
     with st.form("global_filter_form", border=False):
         provinces = st.multiselect(
@@ -119,20 +138,20 @@ with st.sidebar:
         ):
             selected_forms = st.multiselect(
                 "Questionnaires",
-                options=sorted(full_data.forms),
+                options=form_options,
                 format_func=lambda code: f"{code} · {FORM_TITLES[code]}",
                 placeholder="All available questionnaires",
                 key="global_forms",
             )
             rounds = st.multiselect(
                 "Assessment round",
-                all_rounds(full_data),
+                round_options,
                 placeholder="All rounds",
                 key="global_rounds",
             )
             coverage_statuses = st.multiselect(
                 "Coverage status",
-                ["Complete", "Missing", "Unexpected", "Not assigned"],
+                coverage_options,
                 placeholder="All statuses",
                 key="global_coverage_statuses",
             )

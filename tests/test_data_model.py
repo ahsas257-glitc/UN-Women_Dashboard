@@ -19,6 +19,7 @@ from src.data import (
     filter_data,
     load_app_data,
 )
+from src.state import valid_choice, valid_multi
 
 
 class DataModelTests(unittest.TestCase):
@@ -87,6 +88,14 @@ class DataModelTests(unittest.TestCase):
             PUBLIC_GOOGLE_SHEET_ID,
         )
         self.assertEqual(configured_google_sheet_id(), PUBLIC_GOOGLE_SHEET_ID)
+
+    def test_stale_widget_state_is_reconciled(self):
+        self.assertEqual(valid_choice("F06", ["C1", "C2"], default="C1"), "C1")
+        self.assertEqual(valid_choice(99, [0, 1, 2], default=0), 0)
+        self.assertEqual(
+            valid_multi(["Kabul", "Stale"], ["Herat", "Kabul"]),
+            ["Kabul"],
+        )
 
     def test_advanced_filters_preserve_identity_rules(self):
         assignee = self.data.sample["Assigned_to"].dropna().astype(str).iloc[0]
