@@ -1,0 +1,14 @@
+.venv/
+.idea/
+__pycache__/
+*.py[cod]
+.streamlit/secrets.toml
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.DS_Store
+Thumbs.db
+data/raw/*.xlsx
+data/metadata/questionnaire_docs.json
+data/metadata/live_workbook_profile.json
