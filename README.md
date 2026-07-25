@@ -73,6 +73,12 @@ No Streamlit secret is required for the configured project workbook.
 
 No `packages.txt`, `Procfile`, or custom health endpoint is required.
 
+Local development and the production app must use the same Python version.
+If a Cloud traceback shows a version other than Python 3.12, delete and redeploy
+the app with **Advanced settings → Python 3.12**; Community Cloud does not change
+an existing app's Python runtime in place. The `Cloud parity` GitHub Actions
+workflow additionally verifies every page on Linux with Python 3.12 and 3.14.
+
 ## Data protection
 
 The source workbook contains beneficiary-level information. The repository excludes
