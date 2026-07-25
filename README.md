@@ -35,7 +35,7 @@ coverage status and optional submission date. Less-used controls stay under **Ad
 
 ## Performance
 
-- Live workbook data is cached for five minutes as a shared read-only resource.
+- Live workbook data is cached for two minutes as serialized application data.
 - Google export parsing, XLSForm metadata and downstream transformations are cached separately.
 - Precompiled, portable XLSForm metadata avoids opening all 13 questionnaires at every cold start.
 - Correction processing skips non-actionable rows and reuses indexed field mappings.
@@ -47,14 +47,13 @@ coverage status and optional submission date. Less-used controls stay under **Ad
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
-# Replace the placeholder GOOGLE_SHEET_ID in .streamlit\secrets.toml
 .\.venv\Scripts\streamlit.exe run .\streamlit_app.py
 ```
 
-The app refreshes from the configured Google workbook every five minutes. A local
-`data/raw/UN_Women_Live_Data.xlsx` can be used as an offline fallback, but raw
-workbooks are intentionally excluded from Git.
+The app connects directly to the project's public Google Sheet and refreshes its
+workbook data every two minutes. `GOOGLE_SHEET_ID` remains an optional override
+and accepts either a bare ID or a complete Google Sheets URL. There is no offline
+data fallback in the deployed application.
 
 To rebuild the portable questionnaire catalog after changing an XLSForm:
 
@@ -71,10 +70,11 @@ Use these deployment settings:
 - Main file: `streamlit_app.py`
 - Python: `3.12`
 
-Under **App settings → Secrets**, add:
+No secret is required for the configured project workbook. To point a separate
+deployment at another link-viewable workbook, optionally add:
 
 ```toml
-GOOGLE_SHEET_ID = "your-google-sheet-id"
+GOOGLE_SHEET_ID = "a-bare-sheet-id-or-complete-google-sheets-url"
 ```
 
 No `packages.txt`, `Procfile`, or custom health endpoint is required.

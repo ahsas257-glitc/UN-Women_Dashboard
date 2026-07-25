@@ -190,6 +190,10 @@ with st.sidebar:
         f"{active_filter_count} active filters · "
         f"{len(full_data.sample):,} Sample_Track records"
     )
+    st.caption(
+        f"{len(full_data.tables):,} live sheets · "
+        f"{len(full_data.score_long):,} scored responses"
+    )
     st.caption("Light / dark appearance follows Streamlit settings")
 
 filters = {

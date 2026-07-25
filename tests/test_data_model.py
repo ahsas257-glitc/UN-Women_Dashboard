@@ -7,8 +7,18 @@ from pathlib import Path
 import pandas as pd
 
 from src.catalog import analytic_questions, load_catalog
-from src.config import FORM_TITLES, TRACKED_FORMS
-from src.data import _score_field_specs, filter_data, load_app_data
+from src.config import (
+    FORM_TITLES,
+    PUBLIC_GOOGLE_SHEET_ID,
+    TRACKED_FORMS,
+    normalize_google_sheet_id,
+)
+from src.data import (
+    _score_field_specs,
+    configured_google_sheet_id,
+    filter_data,
+    load_app_data,
+)
 
 
 class DataModelTests(unittest.TestCase):
@@ -66,6 +76,18 @@ class DataModelTests(unittest.TestCase):
         )
         self.assertFalse(any(column == "c1_score_sum" for column, _, _ in specs))
 
+    def test_google_sheet_id_accepts_id_and_full_url(self):
+        url = (
+            "https://docs.google.com/spreadsheets/d/"
+            f"{PUBLIC_GOOGLE_SHEET_ID}/edit?gid=1519603637#gid=1519603637"
+        )
+        self.assertEqual(normalize_google_sheet_id(url), PUBLIC_GOOGLE_SHEET_ID)
+        self.assertEqual(
+            normalize_google_sheet_id(PUBLIC_GOOGLE_SHEET_ID),
+            PUBLIC_GOOGLE_SHEET_ID,
+        )
+        self.assertEqual(configured_google_sheet_id(), PUBLIC_GOOGLE_SHEET_ID)
+
     def test_advanced_filters_preserve_identity_rules(self):
         assignee = self.data.sample["Assigned_to"].dropna().astype(str).iloc[0]
         filtered = filter_data(
@@ -99,7 +121,7 @@ class DataModelTests(unittest.TestCase):
         self.assertIn("data/raw/*.xlsx", ignore)
         config_source = (root / "src" / "config.py").read_text(encoding="utf-8")
         self.assertIn('os.getenv("GOOGLE_SHEET_ID"', config_source)
-        self.assertNotIn('GOOGLE_SHEET_ID = "1', config_source)
+        self.assertIn("PUBLIC_GOOGLE_SHEET_ID", config_source)
 
 
 if __name__ == "__main__":

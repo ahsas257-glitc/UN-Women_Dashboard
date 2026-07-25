@@ -16,10 +16,11 @@ from src.catalog import load_catalog, normalize_label, score_questions
 from src.config import (
     CAPACITY_FORMS,
     FORM_TITLES,
-    GOOGLE_EXPORT_URL,
-    LOCAL_WORKBOOK,
+    GOOGLE_SHEET_ID,
+    PUBLIC_GOOGLE_SHEET_ID,
     TRACKED_FORMS,
     WOB_COLUMNS,
+    normalize_google_sheet_id,
 )
 
 
@@ -65,58 +66,86 @@ def find_wob_column(df: pd.DataFrame) -> str | None:
     return None
 
 
-@st.cache_data(ttl="5m", max_entries=2, show_spinner=False)
-def fetch_workbook_bytes() -> tuple[bytes, str]:
-    export_url = GOOGLE_EXPORT_URL
-    if not export_url:
-        try:
-            sheet_id = str(st.secrets.get("GOOGLE_SHEET_ID", "")).strip()
-        except (FileNotFoundError, KeyError):
-            sheet_id = ""
-        if sheet_id:
-            export_url = (
-                "https://docs.google.com/spreadsheets/d/"
-                f"{sheet_id}/export?format=xlsx"
-            )
-
-    live_error = "GOOGLE_SHEET_ID is not configured"
-    if export_url:
-        retry = Retry(
-            total=1,
-            connect=1,
-            read=1,
-            backoff_factor=0.4,
-            status_forcelist=(429, 500, 502, 503, 504),
-            allowed_methods={"GET"},
-        )
-        with requests.Session() as session:
-            session.mount("https://", HTTPAdapter(max_retries=retry))
-            try:
-                response = session.get(export_url, timeout=(5, 30))
-                response.raise_for_status()
-                if len(response.content) > 50_000:
-                    return response.content, "Live Google Sheet"
-                live_error = "the Google export returned an incomplete workbook"
-            except requests.RequestException as exc:
-                live_error = f"the Google export could not be reached ({exc.__class__.__name__})"
-
-    if LOCAL_WORKBOOK.is_file():
-        return LOCAL_WORKBOOK.read_bytes(), "Local fallback snapshot"
-
-    raise DataSourceError(
-        "Project data is unavailable: "
-        f"{live_error}, and no local fallback is present. "
-        "Set GOOGLE_SHEET_ID in Streamlit secrets."
+def configured_google_sheet_id() -> str:
+    """Resolve Cloud secrets safely while retaining the project's public live source."""
+    secret_value = ""
+    try:
+        secret_value = st.secrets.get("GOOGLE_SHEET_ID", "")
+    except (FileNotFoundError, KeyError):
+        pass
+    return (
+        normalize_google_sheet_id(secret_value)
+        or GOOGLE_SHEET_ID
+        or PUBLIC_GOOGLE_SHEET_ID
     )
+
+
+@st.cache_data(ttl="2m", max_entries=2, show_spinner=False)
+def fetch_workbook_bytes() -> tuple[bytes, str]:
+    sheet_id = configured_google_sheet_id()
+    export_url = (
+        "https://docs.google.com/spreadsheets/d/"
+        f"{sheet_id}/export?format=xlsx"
+    )
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        backoff_factor=0.6,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods={"GET"},
+    )
+    with requests.Session() as session:
+        session.mount("https://", HTTPAdapter(max_retries=retry))
+        try:
+            response = session.get(
+                export_url,
+                headers={
+                    "Accept": (
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
+                    "User-Agent": "UN-Women-WOB-Dashboard/1.0",
+                },
+                timeout=(10, 60),
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise DataSourceError(
+                "The live Google Sheet could not be reached. "
+                "Confirm that link sharing permits workbook export, then refresh."
+            ) from exc
+
+    payload = response.content
+    if len(payload) < 50_000 or not payload.startswith(b"PK"):
+        raise DataSourceError(
+            "Google returned a sign-in or incomplete response instead of an XLSX workbook. "
+            "Set the sheet to link-viewable and refresh the app."
+        )
+    return payload, "Live Google Sheet"
 
 
 @st.cache_data(ttl="5m", max_entries=2, show_spinner=False)
 def read_workbook_tables(payload: bytes) -> dict[str, pd.DataFrame]:
-    raw = pd.read_excel(io.BytesIO(payload), sheet_name=None, engine="openpyxl")
-    return {
+    try:
+        raw = pd.read_excel(io.BytesIO(payload), sheet_name=None, engine="openpyxl")
+    except (OSError, ValueError) as exc:
+        raise DataSourceError(
+            "The Google Sheet export is not a readable XLSX workbook."
+        ) from exc
+    tables = {
         name: frame.dropna(how="all").reset_index(drop=True)
         for name, frame in raw.items()
     }
+    if "Sample_Track" not in tables:
+        raise DataSourceError(
+            "The live Google Sheet is missing the required Sample_Track sheet."
+        )
+    if not _form_tables(tables):
+        raise DataSourceError(
+            "The live Google Sheet does not contain any recognized questionnaire sheets."
+        )
+    return tables
 
 
 def _form_tables(tables: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
@@ -468,7 +497,7 @@ def prepare_qa(frame: pd.DataFrame, sample: pd.DataFrame) -> pd.DataFrame:
     return qa
 
 
-@st.cache_data(ttl="5m", max_entries=2, show_spinner=False)
+@st.cache_data(ttl="2m", max_entries=2, show_spinner=False)
 def load_app_data() -> AppData:
     payload, source_mode = fetch_workbook_bytes()
     tables = read_workbook_tables(payload)

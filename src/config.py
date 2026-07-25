@@ -1,18 +1,30 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LOCAL_WORKBOOK = ROOT / "data" / "raw" / "UN_Women_Live_Data.xlsx"
 CATALOG_PATH = ROOT / "data" / "metadata" / "xlsform_catalog.json"
 XLSFORM_DIR = ROOT / "XLS_Forms"
-GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "").strip()
-GOOGLE_EXPORT_URL = (
-    f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=xlsx"
-    if GOOGLE_SHEET_ID
-    else ""
+PUBLIC_GOOGLE_SHEET_ID = "1yARHlwlttMV8aH3Gji9mLaqbyBDQijKJ6oTA_l0upK4"
+
+
+def normalize_google_sheet_id(value: object) -> str:
+    """Accept a bare spreadsheet ID or a standard Google Sheets URL."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    url_match = re.search(r"/spreadsheets/d/([A-Za-z0-9_-]+)", text)
+    if url_match:
+        return url_match.group(1)
+    return text if re.fullmatch(r"[A-Za-z0-9_-]{20,}", text) else ""
+
+
+GOOGLE_SHEET_ID = (
+    normalize_google_sheet_id(os.getenv("GOOGLE_SHEET_ID"))
+    or PUBLIC_GOOGLE_SHEET_ID
 )
 
 FORM_TITLES = {
