@@ -3,11 +3,14 @@ from __future__ import annotations
 import streamlit as st
 
 from src.config import FORM_TITLES
+from src.catalog import load_catalog
 from src.data import (
     DataSourceError,
     all_rounds,
+    fetch_workbook_bytes,
     filter_data,
     load_app_data,
+    read_workbook_tables,
     submission_date_bounds,
 )
 from src.ui import inject_liquid_glass
@@ -34,6 +37,14 @@ def clear_global_filters() -> None:
     ):
         st.session_state[key] = []
     st.session_state["global_date_limit"] = False
+
+
+def refresh_project_data() -> None:
+    """Clear all source/model caches before the next Cloud rerun."""
+    fetch_workbook_bytes.clear()
+    read_workbook_tables.clear()
+    load_app_data.clear()
+    load_catalog.cache_clear()
 
 
 pages = [
@@ -166,6 +177,13 @@ with st.sidebar:
         icon=":material/filter_alt_off:",
         type="tertiary",
         on_click=clear_global_filters,
+    )
+    st.button(
+        "Refresh data",
+        icon=":material/refresh:",
+        type="tertiary",
+        on_click=refresh_project_data,
+        help="Reload Google Sheets data and questionnaire metadata.",
     )
 
     st.caption(

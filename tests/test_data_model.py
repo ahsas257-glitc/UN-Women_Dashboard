@@ -4,9 +4,11 @@ import unittest
 import tomllib
 from pathlib import Path
 
+import pandas as pd
+
 from src.catalog import analytic_questions, load_catalog
 from src.config import FORM_TITLES, TRACKED_FORMS
-from src.data import filter_data, load_app_data
+from src.data import _score_field_specs, filter_data, load_app_data
 
 
 class DataModelTests(unittest.TestCase):
@@ -48,6 +50,21 @@ class DataModelTests(unittest.TestCase):
         self.assertFalse(self.data.score_long.empty)
         self.assertTrue(self.data.score_long["Score"].between(0, 2).all())
         self.assertIn("Assigned to", self.data.score_long)
+
+    def test_kobo_score_columns_have_metadata_fallback(self):
+        frame = pd.DataFrame(
+            {
+                "c1_custom_score": [0, 1, 2, None],
+                "c1_score_sum": [0, 1, 3, 4],
+                "Scoring guide": ["text"] * 4,
+            }
+        )
+        specs = _score_field_specs("C1", frame)
+        self.assertIn(
+            ("c1_custom_score", "c1_custom_score", "c1_custom_score"),
+            specs,
+        )
+        self.assertFalse(any(column == "c1_score_sum" for column, _, _ in specs))
 
     def test_advanced_filters_preserve_identity_rules(self):
         assignee = self.data.sample["Assigned_to"].dropna().astype(str).iloc[0]

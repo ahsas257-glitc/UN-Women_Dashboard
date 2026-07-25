@@ -194,7 +194,19 @@ def score_questions(form_code: str) -> list[dict[str, Any]]:
             continue
         if any(
             token in name
-            for token in ("guide", "target", "avg", "average", "gap", "change", "percent", "count")
+            for token in (
+                "guide",
+                "target",
+                "avg",
+                "average",
+                "mean",
+                "gap",
+                "change",
+                "percent",
+                "count",
+                "sum",
+                "total",
+            )
         ):
             continue
         if question.get("_base_type") not in {"calculate", "select_one", "integer", "decimal"}:

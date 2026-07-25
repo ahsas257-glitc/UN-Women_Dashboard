@@ -278,25 +278,89 @@ def _parse_score(value: Any) -> float | None:
     return score if 0 <= score <= 2 else None
 
 
+def _is_score_column(column: Any) -> bool:
+    """Recognize exported Kobo score fields without relying only on XLSForm metadata."""
+    name = normalize_label(column)
+    if not re.search(r"(?:^|[_\s])score(?:$|[_\s])", name):
+        return False
+    return not any(
+        re.search(rf"(?:^|[_\s]){token}(?:$|[_\s])", name)
+        for token in (
+            "guide",
+            "target",
+            "avg",
+            "average",
+            "mean",
+            "gap",
+            "change",
+            "percent",
+            "count",
+            "sum",
+            "total",
+        )
+    )
+
+
+def _score_field_specs(
+    form_code: str,
+    frame: pd.DataFrame,
+) -> list[tuple[str, str, str]]:
+    """Resolve score fields from the catalog, then safely fall back to Kobo names."""
+    normalized_columns = {normalize_label(column): column for column in frame.columns}
+    specs: list[tuple[str, str, str]] = []
+    used_columns: set[str] = set()
+
+    for question in score_questions(form_code):
+        column = next(
+            (
+                normalized_columns[normalize_label(candidate)]
+                for candidate in (
+                    question.get("name"),
+                    question.get("_display_label"),
+                )
+                if normalize_label(candidate) in normalized_columns
+            ),
+            None,
+        )
+        if column is None or column in used_columns:
+            continue
+        specs.append(
+            (
+                str(column),
+                str(question.get("name") or column),
+                str(question.get("_score_label") or question.get("_display_label") or column),
+            )
+        )
+        used_columns.add(str(column))
+
+    # Keep Cloud analytics available if workbook columns and cached questionnaire
+    # metadata briefly come from different revisions. Kobo's *_score names are
+    # unambiguous after aggregate/guide fields are excluded.
+    for column in frame.columns:
+        column_text = str(column)
+        if column_text in used_columns or not _is_score_column(column_text):
+            continue
+        numeric = pd.to_numeric(frame[column], errors="coerce")
+        if not numeric.between(0, 2, inclusive="both").any():
+            numeric = frame[column].map(_parse_score)
+        if numeric.between(0, 2, inclusive="both").any():
+            specs.append((column_text, column_text, column_text))
+            used_columns.add(column_text)
+
+    return specs
+
+
 def build_score_long(forms: dict[str, pd.DataFrame]) -> pd.DataFrame:
     chunks: list[pd.DataFrame] = []
     for code in [*CAPACITY_FORMS, "F03"]:
         if code not in forms:
             continue
         frame = forms[code]
-        normalized_columns = {normalize_label(column): column for column in frame.columns}
         round_column = next(
             (column for column in frame.columns if normalize_label(column) == "assessment round"),
             None,
         )
-        for question in score_questions(code):
-            column = None
-            for candidate in (question.get("name"), question.get("_display_label")):
-                if normalize_label(candidate) in normalized_columns:
-                    column = normalized_columns[normalize_label(candidate)]
-                    break
-            if not column:
-                continue
+        for column, item_name, question_label in _score_field_specs(code, frame):
             raw_score = frame[column]
             numeric_score = pd.to_numeric(raw_score, errors="coerce")
             if numeric_score.notna().mean() < 0.8:
@@ -325,8 +389,8 @@ def build_score_long(forms: dict[str, pd.DataFrame]) -> pd.DataFrame:
                         if round_column
                         else pd.Series(pd.NA, index=selected.index)
                     ),
-                    "Item": question.get("name"),
-                    "Question": question.get("_score_label"),
+                    "Item": item_name,
+                    "Question": question_label,
                     "Score": numeric_score.loc[valid].astype(float),
                     "Submission time": selected.get(
                         "_submission_time",
@@ -404,7 +468,7 @@ def prepare_qa(frame: pd.DataFrame, sample: pd.DataFrame) -> pd.DataFrame:
     return qa
 
 
-@st.cache_resource(ttl="5m", max_entries=2, show_spinner=False)
+@st.cache_data(ttl="5m", max_entries=2, show_spinner=False)
 def load_app_data() -> AppData:
     payload, source_mode = fetch_workbook_bytes()
     tables = read_workbook_tables(payload)
