@@ -51,9 +51,8 @@ python -m venv .venv
 ```
 
 The app connects directly to the project's public Google Sheet and refreshes its
-workbook data every two minutes. `GOOGLE_SHEET_ID` remains an optional override
-and accepts either a bare ID or a complete Google Sheets URL. There is no offline
-data fallback in the deployed application.
+workbook data every two minutes. There is no secret, environment, or offline data
+override in the deployed application.
 
 To rebuild the portable questionnaire catalog after changing an XLSForm:
 
@@ -70,12 +69,7 @@ Use these deployment settings:
 - Main file: `streamlit_app.py`
 - Python: `3.12`
 
-No secret is required for the configured project workbook. To point a separate
-deployment at another link-viewable workbook, optionally add:
-
-```toml
-GOOGLE_SHEET_ID = "a-bare-sheet-id-or-complete-google-sheets-url"
-```
+No Streamlit secret is required for the configured project workbook.
 
 No `packages.txt`, `Procfile`, or custom health endpoint is required.
 

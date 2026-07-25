@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -22,10 +21,7 @@ def normalize_google_sheet_id(value: object) -> str:
     return text if re.fullmatch(r"[A-Za-z0-9_-]{20,}", text) else ""
 
 
-GOOGLE_SHEET_ID = (
-    normalize_google_sheet_id(os.getenv("GOOGLE_SHEET_ID"))
-    or PUBLIC_GOOGLE_SHEET_ID
-)
+GOOGLE_SHEET_ID = PUBLIC_GOOGLE_SHEET_ID
 
 FORM_TITLES = {
     "C1": "Business formalization, legal compliance & tax readiness",

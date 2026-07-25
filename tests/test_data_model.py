@@ -120,8 +120,8 @@ class DataModelTests(unittest.TestCase):
         self.assertIn(".streamlit/secrets.toml", ignore)
         self.assertIn("data/raw/*.xlsx", ignore)
         config_source = (root / "src" / "config.py").read_text(encoding="utf-8")
-        self.assertIn('os.getenv("GOOGLE_SHEET_ID"', config_source)
         self.assertIn("PUBLIC_GOOGLE_SHEET_ID", config_source)
+        self.assertNotIn("st.secrets", config_source)
 
 
 if __name__ == "__main__":

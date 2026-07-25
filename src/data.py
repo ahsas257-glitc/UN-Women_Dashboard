@@ -20,7 +20,6 @@ from src.config import (
     PUBLIC_GOOGLE_SHEET_ID,
     TRACKED_FORMS,
     WOB_COLUMNS,
-    normalize_google_sheet_id,
 )
 
 
@@ -67,17 +66,8 @@ def find_wob_column(df: pd.DataFrame) -> str | None:
 
 
 def configured_google_sheet_id() -> str:
-    """Resolve Cloud secrets safely while retaining the project's public live source."""
-    secret_value = ""
-    try:
-        secret_value = st.secrets.get("GOOGLE_SHEET_ID", "")
-    except (FileNotFoundError, KeyError):
-        pass
-    return (
-        normalize_google_sheet_id(secret_value)
-        or GOOGLE_SHEET_ID
-        or PUBLIC_GOOGLE_SHEET_ID
-    )
+    """Return the single project workbook; Cloud settings cannot override it."""
+    return GOOGLE_SHEET_ID or PUBLIC_GOOGLE_SHEET_ID
 
 
 @st.cache_data(ttl="2m", max_entries=2, show_spinner=False)
